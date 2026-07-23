@@ -83,10 +83,11 @@ export const Route = createFileRoute("/api/compress")({
           return Response.json({ error: "Invalid JSON" }, { status: 400 });
         }
         const content = (body.content ?? "").trim();
-        if (!content) {
+        const query = (body.query ?? "").trim();
+        if (!content || !query) {
           return Response.json({
             compressed: "",
-            originalTokens: 0,
+            originalTokens: estimateTokens(content),
             compressedTokens: 0,
             savingsPct: 0,
             removedSpans: [],
