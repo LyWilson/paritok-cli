@@ -102,7 +102,7 @@ export const Route = createFileRoute("/api/compress")({
           },
           body: JSON.stringify({
             content,
-            query: body.query ?? "trim filler while preserving intent",
+            query,
             kind: "file_read",
           }),
         });
