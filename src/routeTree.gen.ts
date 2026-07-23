@@ -10,33 +10,63 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiRewardImageRouteImport } from './routes/api/reward-image'
+import { Route as ApiCompressRouteImport } from './routes/api/compress'
+import { Route as ApiCompareRouteImport } from './routes/api/compare'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRewardImageRoute = ApiRewardImageRouteImport.update({
+  id: '/api/reward-image',
+  path: '/api/reward-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCompressRoute = ApiCompressRouteImport.update({
+  id: '/api/compress',
+  path: '/api/compress',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCompareRoute = ApiCompareRouteImport.update({
+  id: '/api/compare',
+  path: '/api/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/compare': typeof ApiCompareRoute
+  '/api/compress': typeof ApiCompressRoute
+  '/api/reward-image': typeof ApiRewardImageRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/compare': typeof ApiCompareRoute
+  '/api/compress': typeof ApiCompressRoute
+  '/api/reward-image': typeof ApiRewardImageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/compare': typeof ApiCompareRoute
+  '/api/compress': typeof ApiCompressRoute
+  '/api/reward-image': typeof ApiRewardImageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/compare' | '/api/compress' | '/api/reward-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/compare' | '/api/compress' | '/api/reward-image'
+  id: '__root__' | '/' | '/api/compare' | '/api/compress' | '/api/reward-image'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiCompareRoute: typeof ApiCompareRoute
+  ApiCompressRoute: typeof ApiCompressRoute
+  ApiRewardImageRoute: typeof ApiRewardImageRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +78,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/reward-image': {
+      id: '/api/reward-image'
+      path: '/api/reward-image'
+      fullPath: '/api/reward-image'
+      preLoaderRoute: typeof ApiRewardImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/compress': {
+      id: '/api/compress'
+      path: '/api/compress'
+      fullPath: '/api/compress'
+      preLoaderRoute: typeof ApiCompressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/compare': {
+      id: '/api/compare'
+      path: '/api/compare'
+      fullPath: '/api/compare'
+      preLoaderRoute: typeof ApiCompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiCompareRoute: ApiCompareRoute,
+  ApiCompressRoute: ApiCompressRoute,
+  ApiRewardImageRoute: ApiRewardImageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
