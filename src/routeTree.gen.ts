@@ -10,18 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiRewardImageRouteImport } from './routes/api/reward-image'
-import { Route as ApiCompressRouteImport } from './routes/api/compress'
 import { Route as ApiCompareRouteImport } from './routes/api/compare'
+import { Route as ApiCompressRouteImport } from './routes/api/compress'
+import { Route as ApiRewardImageRouteImport } from './routes/api/reward-image'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiRewardImageRoute = ApiRewardImageRouteImport.update({
-  id: '/api/reward-image',
-  path: '/api/reward-image',
+const ApiCompareRoute = ApiCompareRouteImport.update({
+  id: '/api/compare',
+  path: '/api/compare',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCompressRoute = ApiCompressRouteImport.update({
@@ -29,9 +29,9 @@ const ApiCompressRoute = ApiCompressRouteImport.update({
   path: '/api/compress',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCompareRoute = ApiCompareRouteImport.update({
-  id: '/api/compare',
-  path: '/api/compare',
+const ApiRewardImageRoute = ApiRewardImageRouteImport.update({
+  id: '/api/reward-image',
+  path: '/api/reward-image',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -78,11 +78,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/reward-image': {
-      id: '/api/reward-image'
-      path: '/api/reward-image'
-      fullPath: '/api/reward-image'
-      preLoaderRoute: typeof ApiRewardImageRouteImport
+    '/api/compare': {
+      id: '/api/compare'
+      path: '/api/compare'
+      fullPath: '/api/compare'
+      preLoaderRoute: typeof ApiCompareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/compress': {
@@ -92,11 +92,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCompressRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/compare': {
-      id: '/api/compare'
-      path: '/api/compare'
-      fullPath: '/api/compare'
-      preLoaderRoute: typeof ApiCompareRouteImport
+    '/api/reward-image': {
+      id: '/api/reward-image'
+      path: '/api/reward-image'
+      fullPath: '/api/reward-image'
+      preLoaderRoute: typeof ApiRewardImageRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -111,3 +111,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

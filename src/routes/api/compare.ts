@@ -1,53 +1,52 @@
 import { createFileRoute } from "@tanstack/react-router";
+import OpenAI from "openai";
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "openai/gpt-5.5";
+const client = new OpenAI({
+  baseURL: "https://integrate.api.nvidia.com/v1",
+  apiKey: process.env.NVIDIA_API_KEY,
+});
+const MODEL = "openai/gpt-oss-20b";
 
-async function chat(prompt: string, key: string): Promise<string> {
-  const r = await fetch(GATEWAY, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: "user", content: prompt }],
-    }),
+async function chat(prompt: string): Promise<string> {
+  const r = await client.chat.completions.create({
+    model: MODEL,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 1,
+    top_p: 1,
+    max_tokens: 4096,
+    stream: false,
   });
-  if (!r.ok) throw new Error(`AI Gateway ${r.status}: ${await r.text().catch(() => "")}`);
-  const d = await r.json();
-  return d.choices?.[0]?.message?.content ?? "";
+  return r.choices?.[0]?.message?.content ?? "";
 }
 
 async function judge(
   originalIntent: string,
   outputA: string,
   outputB: string,
-  key: string,
 ): Promise<{
   bloated: { relevance: number; conciseness: number };
   trimmed: { relevance: number; conciseness: number };
 }> {
-  const r = await fetch(GATEWAY, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a strict AI-output evaluator. Rate two answers to the same user intent on relevance (0-100, how well it addresses the intent) and conciseness (0-100, higher = leaner without losing meaning). Respond with JSON only.",
-        },
-        {
-          role: "user",
-          content: `Original user intent:\n"""\n${originalIntent}\n"""\n\nAnswer A (bloated prompt output):\n"""\n${outputA}\n"""\n\nAnswer B (trimmed prompt output):\n"""\n${outputB}\n"""\n\nReturn JSON: {"bloated":{"relevance":<0-100>,"conciseness":<0-100>},"trimmed":{"relevance":<0-100>,"conciseness":<0-100>}}`,
-        },
-      ],
-      response_format: { type: "json_object" },
-    }),
+  const r = await client.chat.completions.create({
+    model: MODEL,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a strict AI-output evaluator. Rate two answers to the same user intent on relevance (0-100, how well it addresses the intent) and conciseness (0-100, higher = leaner without losing meaning). Respond with JSON only.",
+      },
+      {
+        role: "user",
+        content: `Original user intent:\n"""\n${originalIntent}\n"""\n\nAnswer A (bloated prompt output):\n"""\n${outputA}\n"""\n\nAnswer B (trimmed prompt output):\n"""\n${outputB}\n"""\n\nReturn JSON: {"bloated":{"relevance":<0-100>,"conciseness":<0-100>},"trimmed":{"relevance":<0-100>,"conciseness":<0-100>}}`,
+      },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 1,
+    top_p: 1,
+    max_tokens: 4096,
+    stream: false,
   });
-  if (!r.ok) throw new Error(`Judge ${r.status}`);
-  const d = await r.json();
-  const raw = d.choices?.[0]?.message?.content ?? "{}";
+  const raw = r.choices?.[0]?.message?.content ?? "{}";
   try {
     const parsed = JSON.parse(raw);
     return {
@@ -72,8 +71,9 @@ export const Route = createFileRoute("/api/compare")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const key = process.env.LOVABLE_API_KEY;
-        if (!key) return Response.json({ error: "Missing LOVABLE_API_KEY" }, { status: 500 });
+        if (!process.env.NVIDIA_API_KEY) {
+          return Response.json({ error: "Missing NVIDIA_API_KEY" }, { status: 500 });
+        }
 
         const body = (await request.json()) as {
           original?: string;
@@ -89,10 +89,10 @@ export const Route = createFileRoute("/api/compare")({
 
         try {
           const [bloatedText, trimmedText] = await Promise.all([
-            chat(original, key),
-            chat(compressed, key),
+            chat(original),
+            chat(compressed),
           ]);
-          const scores = await judge(intent, bloatedText, trimmedText, key);
+          const scores = await judge(intent, bloatedText, trimmedText);
           const total = (r: number, c: number) => Math.round(r * 0.7 + c * 0.3);
           return Response.json({
             bloated: {
