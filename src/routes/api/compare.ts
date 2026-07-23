@@ -92,7 +92,7 @@ export const Route = createFileRoute("/api/compare")({
             chat(original, key),
             chat(compressed, key),
           ]);
-          const scores = await judge(original, bloatedText, trimmedText, key);
+          const scores = await judge(intent, bloatedText, trimmedText, key);
           const total = (r: number, c: number) => Math.round(r * 0.7 + c * 0.3);
           return Response.json({
             bloated: {
