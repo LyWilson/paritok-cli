@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Sparkles, Play } from "lucide-react";
 import { ScoreDial } from "./ScoreDial";
@@ -23,20 +24,51 @@ interface CompareResult {
 }
 
 const FILLER_PATTERNS: { label: string; re: RegExp }[] = [
+  { label: "boilerplate comments", re: /^\s*(#|\/\/).*$/m },
+  { label: "verbose docstrings", re: /"""[\s\S]{80,}?"""/ },
   { label: "as an AI model", re: /\bas an ai (model|assistant|language model)\b/i },
   { label: "please note", re: /\bplease note (that)?\b/i },
   { label: "it is important", re: /\bit is important to (note|remember|mention)\b/i },
   { label: "in order to", re: /\bin order to\b/i },
-  { label: "kindly", re: /\bkindly\b/i },
-  { label: "I would like to", re: /\bi would like (to|you to)\b/i },
-  { label: "very / really", re: /\b(very|really|actually|basically|literally)\b/i },
-  { label: "make sure that", re: /\bmake sure (that|to)\b/i },
+  { label: "very / really / basically", re: /\b(very|really|actually|basically|literally)\b/i },
 ];
 
-const SAMPLE = `As an AI model, I would kindly like you to please explain, in a very simple way that a 5-year-old could actually understand, the basic concept of quantum physics. It is important to note that you should make sure to avoid technical jargon and, in order to keep it fun, feel free to use analogies involving toys or animals if that helps.`;
+const SAMPLE_QUERY = "fix the add helper";
+const SAMPLE_CONTEXT = `# Math utility helpers
+# This module contains a handful of small arithmetic functions.
+# TODO: refactor to a class one day.
+
+def add(a, b):
+    """Add two numbers together and return the sum."""
+    return a + b
+
+def subtract(a, b):
+    """Subtract b from a and return the difference."""
+    return a - b
+
+def multiply(a, b):
+    """Multiply two numbers together and return the product."""
+    return a * b
+
+def divide(a, b):
+    """Divide a by b. Raises ZeroDivisionError if b is 0."""
+    if b == 0:
+        raise ZeroDivisionError("cannot divide by zero")
+    return a / b
+
+def power(a, b):
+    """Raise a to the power of b."""
+    return a ** b
+
+def modulo(a, b):
+    """Return a mod b."""
+    return a % b
+`;
 
 export function DietCoach() {
-  const [input, setInput] = useState(SAMPLE);
+  const [query, setQuery] = useState(SAMPLE_QUERY);
+  const [context, setContext] = useState(SAMPLE_CONTEXT);
+
   const [result, setResult] = useState<CompressResult | null>(null);
   const [compressing, setCompressing] = useState(false);
   const [compressError, setCompressError] = useState<string | null>(null);
@@ -49,11 +81,10 @@ export function DietCoach() {
   const [activeMeme, setActiveMeme] = useState<string | null>(null);
   const [memeDataUrl, setMemeDataUrl] = useState<string | null>(null);
 
-  // Debounced compression on input change.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (!input.trim()) {
+    if (!context.trim() || !query.trim()) {
       setResult(null);
       return;
     }
@@ -64,7 +95,7 @@ export function DietCoach() {
         const r = await fetch("/api/compress", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: input }),
+          body: JSON.stringify({ content: context, query }),
         });
         const data = await r.json();
         if (!r.ok) throw new Error(data.error ?? "Compression failed");
@@ -74,13 +105,12 @@ export function DietCoach() {
       } finally {
         setCompressing(false);
       }
-    }, 600);
+    }, 700);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [input]);
+  }, [context, query]);
 
-  // Milestone rewards.
   useEffect(() => {
     if (!result) return;
     const pct = result.savingsPct;
@@ -98,20 +128,23 @@ export function DietCoach() {
     }
   }, [result, milestones]);
 
-  const fillerHits = useMemo(() => {
-    return FILLER_PATTERNS.filter((p) => p.re.test(input));
-  }, [input]);
+  const fillerHits = useMemo(
+    () => FILLER_PATTERNS.filter((p) => p.re.test(context)),
+    [context],
+  );
 
   const runCompare = async () => {
-    if (!result || !result.compressed) return;
+    if (!result?.compressed) return;
     setComparing(true);
     setCompareError(null);
     setComparison(null);
     try {
+      const bloatedPrompt = `${query}\n\nContext:\n${context}`;
+      const trimmedPrompt = `${query}\n\nContext:\n${result.compressed}`;
       const r = await fetch("/api/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ original: input, compressed: result.compressed }),
+        body: JSON.stringify({ original: bloatedPrompt, compressed: trimmedPrompt, intent: query }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error ?? "Comparison failed");
@@ -127,32 +160,49 @@ export function DietCoach() {
 
   return (
     <div className="mx-auto grid max-w-6xl gap-6 p-4 md:p-8 lg:grid-cols-[1.2fr_1fr]">
-      {/* LEFT: editor + score */}
       <div className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Your query
+          </label>
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="e.g. fix the add helper"
+          />
+        </div>
+
         <Tabs defaultValue="edit">
           <div className="flex items-center justify-between">
-            <TabsList>
-              <TabsTrigger value="edit">Edit prompt</TabsTrigger>
-              <TabsTrigger value="diff">Diff view</TabsTrigger>
-            </TabsList>
-            {compressing && (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> Paritok trimming…
-              </span>
-            )}
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Your context / prompt bloat
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {compressing && (
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Paritok trimming…
+                </span>
+              )}
+              <TabsList>
+                <TabsTrigger value="edit">Edit</TabsTrigger>
+                <TabsTrigger value="diff">Diff</TabsTrigger>
+              </TabsList>
+            </div>
           </div>
           <TabsContent value="edit" className="mt-3">
             <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              rows={10}
-              placeholder="Paste or type an AI prompt…"
-              className="resize-none font-mono text-sm"
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              rows={12}
+              placeholder="Paste the code, docs, or bloated context you'd normally dump into the prompt…"
+              className="resize-none font-mono text-xs"
             />
           </TabsContent>
           <TabsContent value="diff" className="mt-3">
-            <div className="min-h-[240px] rounded-lg border bg-card p-4">
-              <PromptDiffView original={input} removedSpans={result?.removedSpans ?? []} />
+            <div className="min-h-[280px] rounded-lg border bg-card p-4 font-mono text-xs">
+              <PromptDiffView original={context} removedSpans={result?.removedSpans ?? []} />
             </div>
           </TabsContent>
         </Tabs>
@@ -179,7 +229,7 @@ export function DietCoach() {
         {fillerHits.length > 0 && (
           <div className="rounded-lg border bg-muted/40 p-3">
             <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <Sparkles className="h-3 w-3" /> Coach spots filler phrases
+              <Sparkles className="h-3 w-3" /> Coach spots low-value patterns
             </div>
             <div className="flex flex-wrap gap-1.5">
               {fillerHits.map((f) => (
@@ -242,14 +292,13 @@ export function DietCoach() {
         )}
       </div>
 
-      {/* RIGHT: rewards */}
       <div className="space-y-4">
         <div className="rounded-2xl border bg-gradient-to-br from-emerald-500/10 via-transparent to-yellow-400/10 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
             Reward zone
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Hit 50% savings to unlock your first Paritok-branded meme. 70% and 90% unlock more.
+            Hit 50% savings to unlock a Paritok-branded meme. 70% and 90% unlock more.
           </p>
           <div className="mt-3 flex gap-2 text-xs font-semibold">
             {[50, 70, 90].map((m) => (
