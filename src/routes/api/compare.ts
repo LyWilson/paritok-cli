@@ -75,9 +75,14 @@ export const Route = createFileRoute("/api/compare")({
         const key = process.env.LOVABLE_API_KEY;
         if (!key) return Response.json({ error: "Missing LOVABLE_API_KEY" }, { status: 500 });
 
-        const body = (await request.json()) as { original?: string; compressed?: string };
+        const body = (await request.json()) as {
+          original?: string;
+          compressed?: string;
+          intent?: string;
+        };
         const original = (body.original ?? "").trim();
         const compressed = (body.compressed ?? "").trim();
+        const intent = (body.intent ?? original).trim();
         if (!original || !compressed) {
           return Response.json({ error: "original and compressed required" }, { status: 400 });
         }
