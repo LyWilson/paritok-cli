@@ -1,29 +1,52 @@
-# Welcome to your Lovable project
+# Prompt Diet Coach
 
-This project was built with [Lovable](https://lovable.dev).
+An AI-powered prompt optimization tool that compresses verbose prompts into lean, effective versions — then scores both to show you the savings.
 
-## Build with Lovable
+[![Built with Paritok](https://img.shields.io/badge/Built%20with-Paritok-1f2d3d)](https://github.com/Paritok-official/paritok-4b-v1)
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+## What it does
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+1. **Paste a prompt** — drop in any AI prompt you want to optimize
+2. **Compress** — sends it through [Paritok](https://github.com/Paritok-official/paritok-4b-v1) to strip bloat while preserving intent
+3. **Compare** — runs both the original and compressed versions through a judge LLM
+4. **Score** — see relevance and conciseness scores for both versions side by side
 
-## Development
+## Tech Stack
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+- [TanStack Start](https://tanstack.com/start) — React meta-framework
+- [React 19](https://react.dev) — UI
+- [Tailwind CSS 4](https://tailwindcss.com) — styling
+- [shadcn/ui](https://ui.shadcn.com) — component library
+- [Paritok](https://github.com/Paritok-official/paritok-4b-v1) — prompt compression API
+- [NVIDIA OpenAI endpoint](https://build.nvidia.com) — LLM judge
+
+## Getting Started
+
+Requires [Node.js](https://nodejs.org) 18+.
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+git clone https://github.com/LyWilson/prompt-diet-coach.git
+cd prompt-diet-coach
+npm install
+```
+
+Create a `.env` file:
+
+```
+PARITOK_API_KEY=your-paritok-key
+NVIDIA_API_KEY=your-nvidia-key
+```
+
+Run the dev server:
+
+```sh
 npm run dev
 ```
 
+## License
+
+[Apache 2.0](LICENSE)
+
 ## Built with
 
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
+- [Paritok](https://github.com/Paritok-official/paritok-4b-v1) — prompt compression engine
