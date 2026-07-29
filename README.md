@@ -1,5 +1,7 @@
 # paritok-cli
 
+[![Built with Paritok](https://img.shields.io/badge/Built%20with-Paritok-1f2d3d)](https://github.com/Paritok-official/paritok-4b-v1)
+
 A cost-optimized interactive coding agent CLI. Routes requests through the **paritok proxy** for compression, then forwards to NVIDIA's API for AI-powered code assistance.
 
 ```
@@ -157,6 +159,11 @@ All config is in `~/.paritok.json`:
 | `base_url` | `PARITOK_BASE_URL` | `http://127.0.0.1:8080` |
 
 Env vars take precedence over the config file.
+
+## Built With
+
+- [Paritok](https://github.com/Paritok-official/paritok-4b-v1) — Prompt compression for cost-optimized LLM usage
+- [NVIDIA API](https://build.nvidia.com/) — AI inference
 
 ## License
 

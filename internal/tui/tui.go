@@ -54,16 +54,18 @@ type model struct {
 	entries  []chatEntry
 	content  strings.Builder
 
-	streaming   bool
-	agentChan   chan agentMsg
-	currentResp strings.Builder
+	streaming    bool
+	agentChan    chan agentMsg
+	currentResp  strings.Builder
 	welcomeShown bool
+	totalSaved   int
 
 	err error
 }
 
 func New(cl *client.Client, paritokKey, modelName string) *model {
 	ti := textinput.New()
+	ti.Prompt = "> "
 	ti.Placeholder = "Message (/help for commands)"
 	ti.Focus()
 	ti.CharLimit = 0
@@ -186,7 +188,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			saved := len(msg.original) - len(msg.compressed)
 			if saved > 0 {
+				m.totalSaved += saved
 				m.appendEntry(chatEntry{kind: "system", content: fmt.Sprintf("Compressed: %d chars saved", saved)})
+				m.input.Prompt = fmt.Sprintf("> (saved %d chars) ", m.totalSaved)
 			}
 			m.messages = append(m.messages, client.Message{Role: "user", Content: msg.compressed})
 		}
