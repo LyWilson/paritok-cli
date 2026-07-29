@@ -18,13 +18,16 @@ import (
 	"github.com/yourusername/paritok-cli/internal/tools"
 )
 
-var (
+	var (
 	userStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
 	aiStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
 	errStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	toolCallStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	toolResStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("118"))
+	logoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
+	subStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cmdStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
 )
 
 type chatEntry struct {
@@ -54,6 +57,7 @@ type model struct {
 	streaming   bool
 	agentChan   chan agentMsg
 	currentResp strings.Builder
+	welcomeShown bool
 
 	err error
 }
@@ -117,7 +121,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.YPosition = 0
 			m.input.Width = msg.Width
 			m.ready = true
-			m.appendEntry(chatEntry{kind: "system", content: "Connected - model: " + m.modelName})
+			if !m.welcomeShown {
+				m.welcomeShown = true
+				m.showWelcome()
+			}
 		} else {
 			m.viewport.Width = msg.Width
 			m.viewport.Height = h
@@ -238,6 +245,23 @@ func (m *model) View() string {
 		return "\n  Initializing..."
 	}
 	return m.viewport.View() + "\n" + m.input.View()
+}
+
+func (m *model) showWelcome() {
+	logo := logoStyle.Render(`██████╗  █████╗ ██████╗ ██╗████████╗ ██████╗ ██╗  ██╗
+██╔══██╗██╔══██╗██╔══██╗██║╚══██╔══╝██╔═══██╗██║ ██╔╝
+██████╔╝███████║██████╔╝██║   ██║   ██║   ██║█████╔╝ 
+██╔═══╝ ██╔══██║██╔══██╗██║   ██║   ██║   ██║██╔═██╗ 
+██║     ██║  ██║██║  ██║██║   ██║   ╚██████╔╝██║  ██╗
+╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝`)
+	m.content.WriteString("\n" + logo + "\n\n")
+	m.content.WriteString(subStyle.Render("  Cost-optimized coding agent CLI") + "\n")
+	m.content.WriteString(infoStyle.Render("  Model: "+m.modelName) + "\n\n")
+	m.content.WriteString(cmdStyle.Render("  /help") + infoStyle.Render(" — show commands") + "\n")
+	m.content.WriteString(cmdStyle.Render("  /quit") + infoStyle.Render(" — exit") + "\n\n")
+	m.content.WriteString(infoStyle.Render("  Type a message or ask me to build something...") + "\n")
+	m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
+	m.viewport.GotoBottom()
 }
 
 func compressCmd(apiKey, content string) tea.Cmd {

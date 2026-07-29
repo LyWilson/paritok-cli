@@ -56,6 +56,14 @@ func Definitions() []client.ToolDefinition {
 		{
 			Type: "function",
 			Function: client.FunctionDef{
+				Name:        "remove",
+				Description: "Delete a file or empty directory.",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Path to the file or directory to remove"}},"required":["path"]}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: client.FunctionDef{
 				Name:        "bash",
 				Description: "Execute a shell command and return the output. Use for running scripts, building, testing, or any terminal operation.",
 				Parameters:  json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute"}},"required":["command"]}`),
@@ -86,6 +94,10 @@ type globParams struct {
 type grepParams struct {
 	Pattern string `json:"pattern"`
 	Include string `json:"include,omitempty"`
+}
+
+type removeParams struct {
+	Path string `json:"path"`
 }
 
 type bashParams struct {
@@ -124,6 +136,12 @@ func Dispatch(name string, args json.RawMessage) (string, error) {
 			return "", fmt.Errorf("grep: %w", err)
 		}
 		return handleGrep(p)
+	case "remove":
+		var p removeParams
+		if err := json.Unmarshal(args, &p); err != nil {
+			return "", fmt.Errorf("remove: %w", err)
+		}
+		return handleRemove(p)
 	case "bash":
 		var p bashParams
 		if err := json.Unmarshal(args, &p); err != nil {
@@ -171,6 +189,13 @@ func handleEdit(p editParams) (string, error) {
 		return "", fmt.Errorf("edit %s: %w", p.Path, err)
 	}
 	return "Edited " + p.Path, nil
+}
+
+func handleRemove(p removeParams) (string, error) {
+	if err := os.Remove(p.Path); err != nil {
+		return "", fmt.Errorf("remove %s: %w", p.Path, err)
+	}
+	return "Removed " + p.Path, nil
 }
 
 func handleGlob(p globParams) (string, error) {
