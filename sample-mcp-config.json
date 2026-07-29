@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "neon": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@neondatabase/mcp-server"
+      ],
+      "env": {
+        "NEON_API_KEY": "<your-neon-api-key>"
+      }
+    }
+  }
+}
