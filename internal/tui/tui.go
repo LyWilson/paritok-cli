@@ -2,7 +2,6 @@ package tui
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,36 +10,32 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/LyWilson/paritok-cli/internal/agent"
-	"github.com/LyWilson/paritok-cli/internal/client"
+	"github.com/yourusername/paritok-cli/internal/client"
+	"github.com/yourusername/paritok-cli/internal/tools"
 )
 
 var (
-	userStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
-	aiStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	errStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	infoStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	codeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("118"))
+	userStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
+	aiStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
+	errStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	toolCallStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	toolResStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("118"))
 )
 
-type streamMsg struct {
-	content string
-	done    bool
-	err     error
+type chatEntry struct {
+	kind    string // "user", "assistant", "tool_call", "tool_result", "system"
+	content string // raw text
 }
 
 type compressResult struct {
 	compressed string
 	original   string
 	err        error
-}
-
-type codeIterMsg struct {
-	output string
-	err    error
 }
 
 type model struct {
@@ -53,14 +48,12 @@ type model struct {
 	viewport viewport.Model
 	input    textinput.Model
 	ready    bool
+	entries  []chatEntry
 	content  strings.Builder
 
 	streaming   bool
-	streamChan  chan streamMsg
-	respBuilder strings.Builder
-
-	codeMode      bool
-	codeIteration int
+	agentChan   chan agentMsg
+	currentResp strings.Builder
 
 	err error
 }
@@ -77,12 +70,39 @@ func New(cl *client.Client, paritokKey, modelName string) *model {
 		paritokKey: paritokKey,
 		modelName:  modelName,
 		input:      ti,
-		streamChan: make(chan streamMsg, 64),
+		agentChan:  make(chan agentMsg, 256),
 	}
 }
 
 func (m *model) Init() tea.Cmd {
 	return textinput.Blink
+}
+
+func (m *model) appendEntry(e chatEntry) {
+	m.entries = append(m.entries, e)
+	switch e.kind {
+	case "user":
+		m.content.WriteString("\n" + userStyle.Render("You: ") + e.content + "\n")
+	case "assistant":
+		rendered, err := glamour.Render(e.content, "dark")
+		if err != nil {
+			m.content.WriteString("\n" + aiStyle.Render("AI: ") + e.content + "\n")
+		} else {
+			lines := strings.Split(rendered, "\n")
+			for i, l := range lines {
+				lines[i] = strings.TrimRight(l, " \t\r")
+			}
+			m.content.WriteString("\n" + aiStyle.Render("AI: ") + "\n" + strings.Join(lines, "\n") + "\n")
+		}
+	case "tool_call":
+		m.content.WriteString("\n" + toolCallStyle.Render("🔧 " + e.content) + "\n")
+	case "tool_result":
+		m.content.WriteString(toolResStyle.Render(e.content) + "\n")
+	case "system":
+		m.content.WriteString("\n" + infoStyle.Render(e.content) + "\n")
+	}
+	m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
+	m.viewport.GotoBottom()
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -97,8 +117,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.YPosition = 0
 			m.input.Width = msg.Width
 			m.ready = true
-			m.content.WriteString(infoStyle.Render("Connected - model: " + m.modelName))
-			m.viewport.SetContent(wrapContent(m.content.String(), msg.Width))
+			m.appendEntry(chatEntry{kind: "system", content: "Connected - model: " + m.modelName})
 		} else {
 			m.viewport.Width = msg.Width
 			m.viewport.Height = h
@@ -140,42 +159,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			if input == "/help" {
-				m.content.WriteString("\n" + infoStyle.Render("Commands: /help, /quit, /exit, /code <prompt>") + "\n")
-				m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
+				m.appendEntry(chatEntry{kind: "system", content: "Commands: /help, /quit, /exit"})
 				m.input.SetValue("")
-				m.viewport.GotoBottom()
 				break
 			}
 
-			if strings.HasPrefix(input, "/code ") {
-				prompt := strings.TrimPrefix(input, "/code ")
-				m.codeMode = true
-				m.codeIteration = 0
-				m.content.WriteString("\n" + infoStyle.Render("=== CODE MODE ===") + "\n" + userStyle.Render("You: ") + prompt + "\n")
-				m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-				m.viewport.GotoBottom()
-				m.input.SetValue("")
-				m.input.Blur()
-				m.streaming = true
-				m.respBuilder.Reset()
-				sysPrompt := prompt + "\n\nReturn ONLY code in a single ``` block with no explanation."
-				m.messages = append(m.messages, client.Message{Role: "user", Content: sysPrompt})
-				m.streamChan = make(chan streamMsg, 64)
-				go m.stream(m.streamChan)
-				return m, waitForStream(m.streamChan)
-			}
-
 			m.origContent = input
-			m.content.WriteString("\n" + userStyle.Render("You: ") + input + "\n")
-			m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-			m.viewport.GotoBottom()
+			m.appendEntry(chatEntry{kind: "user", content: input})
 			m.input.SetValue("")
 			m.input.Blur()
 			m.streaming = true
-			m.respBuilder.Reset()
-			m.content.WriteString(infoStyle.Render("Compressing...") + "\n")
-			m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-			m.viewport.GotoBottom()
+			m.appendEntry(chatEntry{kind: "system", content: "Compressing..."})
 			return m, compressCmd(m.paritokKey, input)
 		}
 
@@ -185,101 +179,53 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			saved := len(msg.original) - len(msg.compressed)
 			if saved > 0 {
-				m.content.WriteString(infoStyle.Render(fmt.Sprintf(" (compressed: %d chars)", saved)))
-				m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-				m.viewport.GotoBottom()
+				m.appendEntry(chatEntry{kind: "system", content: fmt.Sprintf("Compressed: %d chars saved", saved)})
 			}
 			m.messages = append(m.messages, client.Message{Role: "user", Content: msg.compressed})
 		}
-		m.content.WriteString(aiStyle.Render("AI: "))
-		m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-		m.viewport.GotoBottom()
-		m.respBuilder.Reset()
-		m.streamChan = make(chan streamMsg, 64)
-		go m.stream(m.streamChan)
-		return m, waitForStream(m.streamChan)
+		go runAgent(m.client, m.modelName, m.messages, tools.Definitions(), m.agentChan)
+		return m, waitForAgent(m.agentChan)
 
-	case streamMsg:
-		if msg.err != nil {
-			m.content.WriteString(errStyle.Render("Error: " + msg.err.Error() + "\n"))
-			m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-			m.viewport.GotoBottom()
-			m.streaming = false
-			m.input.Focus()
-			m.codeMode = false
-			return m, nil
-		}
-		if msg.content != "" {
-			m.respBuilder.WriteString(msg.content)
-			m.content.WriteString(msg.content)
-			m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-			m.viewport.GotoBottom()
-		}
-		if msg.done {
-			resp := m.respBuilder.String()
-			m.messages = append(m.messages, client.Message{Role: "assistant", Content: resp})
+	case agentMsg:
+		switch msg.kind {
+		case "text":
+			m.currentResp.WriteString(msg.content)
+			return m, waitForAgent(m.agentChan)
+
+		case "tool_call":
+			if m.currentResp.Len() > 0 {
+				m.appendEntry(chatEntry{kind: "assistant", content: m.currentResp.String()})
+				m.currentResp.Reset()
+			}
+			m.appendEntry(chatEntry{kind: "tool_call", content: msg.toolName + "(" + msg.content + ")"})
+
+		case "tool_result":
+			m.appendEntry(chatEntry{kind: "tool_result", content: msg.content})
+
+		case "done":
+			if m.currentResp.Len() > 0 {
+				m.appendEntry(chatEntry{kind: "assistant", content: m.currentResp.String()})
+				m.currentResp.Reset()
+			}
 			m.content.WriteString("\n")
 			m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
 			m.viewport.GotoBottom()
-
-			if m.codeMode && m.codeIteration < 5 {
-				m.codeIteration++
-				code := agent.ExtractCodeBlock(resp)
-				if code == "" {
-					m.content.WriteString(errStyle.Render("No code block found, exiting code mode") + "\n")
-					m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-					m.viewport.GotoBottom()
-					m.streaming = false
-					m.codeMode = false
-					m.input.Focus()
-					return m, nil
-				}
-				lang := agent.DetectLang(resp)
-				m.content.WriteString(infoStyle.Render("Running code (" + lang + ")...") + "\n")
-				m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-				m.viewport.GotoBottom()
-				m.streaming = true
-				return m, codeIterCmd(code, lang)
-			}
-
 			m.streaming = false
-			m.codeMode = false
 			m.input.Focus()
-			return m, nil
-		}
-		return m, waitForStream(m.streamChan)
-
-	case codeIterMsg:
-		var feedback string
-		if msg.err != nil {
-			m.content.WriteString(errStyle.Render("Error: " + msg.err.Error() + "\n"))
-			feedback = "Code error:\n" + msg.err.Error() + "\nFix the code and return ONLY the corrected version."
-		} else {
-			outputText := msg.output
-			if outputText == "" {
-				outputText = "(no output)"
+			if msg.messages != nil {
+				m.messages = msg.messages
 			}
-			m.content.WriteString(codeStyle.Render(outputText) + "\n")
-			feedback = "The code ran with this output:\n" + outputText + "\nIf the result looks complete, return the FINAL code version. Otherwise improve it and return ONLY the updated code."
-		}
-		m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-		m.viewport.GotoBottom()
 
-		if m.codeMode && m.codeIteration < 5 {
-			m.content.WriteString(infoStyle.Render("Iterating...") + "\n")
-			m.viewport.SetContent(wrapContent(m.content.String(), m.viewport.Width))
-			m.viewport.GotoBottom()
-			m.respBuilder.Reset()
-			m.messages = append(m.messages, client.Message{Role: "user", Content: feedback})
-			m.streamChan = make(chan streamMsg, 64)
-			go m.stream(m.streamChan)
-			return m, waitForStream(m.streamChan)
+		case "error":
+			if m.currentResp.Len() > 0 {
+				m.appendEntry(chatEntry{kind: "assistant", content: m.currentResp.String()})
+				m.currentResp.Reset()
+			}
+			m.appendEntry(chatEntry{kind: "system", content: "Error: " + msg.content})
+			m.streaming = false
+			m.input.Focus()
 		}
-
-		m.streaming = false
-		m.codeMode = false
-		m.input.Focus()
-		return m, nil
+		return m, waitForAgent(m.agentChan)
 	}
 
 	var cmd tea.Cmd
@@ -294,39 +240,11 @@ func (m *model) View() string {
 	return m.viewport.View() + "\n" + m.input.View()
 }
 
-func (m *model) stream(ch chan streamMsg) {
-	ctx := context.Background()
-	events, err := m.client.StreamChat(ctx, m.modelName, m.messages, nil)
-	if err != nil {
-		ch <- streamMsg{err: err}
-		return
-	}
-	for evt := range events {
-		switch evt.Type {
-		case client.EventText:
-			ch <- streamMsg{content: evt.Content}
-		case client.EventDone:
-			ch <- streamMsg{done: true}
-			return
-		case client.EventError:
-			ch <- streamMsg{err: evt.Error}
-			return
-		}
-	}
-}
-
-func codeIterCmd(code, lang string) tea.Cmd {
-	return func() tea.Msg {
-		output, err := agent.RunCode(code, lang)
-		if err != nil {
-			return codeIterMsg{err: err}
-		}
-		return codeIterMsg{output: output}
-	}
-}
-
 func compressCmd(apiKey, content string) tea.Cmd {
 	return func() tea.Msg {
+		if apiKey == "" {
+			return compressResult{compressed: content, original: content}
+		}
 		body, _ := json.Marshal(map[string]string{
 			"content": content,
 			"query":   content,
@@ -337,14 +255,14 @@ func compressCmd(apiKey, content string) tea.Cmd {
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return compressResult{err: fmt.Errorf("compress: %w", err)}
+			return compressResult{compressed: content, original: content}
 		}
 		defer resp.Body.Close()
 		var r struct {
 			Compressed string `json:"compressed"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-			return compressResult{err: fmt.Errorf("compress decode: %w", err)}
+			return compressResult{compressed: content, original: content}
 		}
 		if r.Compressed == "" {
 			return compressResult{compressed: content, original: content}
@@ -353,11 +271,11 @@ func compressCmd(apiKey, content string) tea.Cmd {
 	}
 }
 
-func waitForStream(ch chan streamMsg) tea.Cmd {
+func waitForAgent(ch chan agentMsg) tea.Cmd {
 	return func() tea.Msg {
 		msg, ok := <-ch
 		if !ok {
-			return streamMsg{done: true}
+			return agentMsg{kind: "done"}
 		}
 		return msg
 	}
