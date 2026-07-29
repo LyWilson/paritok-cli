@@ -1,3 +1,3 @@
 use_gpu_server: true
 gpu_server:
-  api_key: "pk_live_B5DqNhDoe3f3bGhX4fFm4BIuYR8N9RKs"
+  api_key: "your-paritok-api-key"
