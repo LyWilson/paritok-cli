@@ -1,4 +1,4 @@
-# prompt-diet-coach
+# paritok-cli
 
 A cost-optimized interactive coding agent CLI. Routes requests through the **paritok proxy** for compression, then forwards to NVIDIA's API for AI-powered code assistance.
 
@@ -37,9 +37,9 @@ The CLI sends chat completions through the local paritok proxy (port 8080). The 
 ### 1. Build the CLI
 
 ```powershell
-git clone https://github.com/LyWilson/prompt-diet-coach.git
-cd prompt-diet-coach
-go build -o prompt-diet-coach.exe .
+git clone https://github.com/LyWilson/paritok-cli.git
+cd paritok-cli
+go build -o paritok-cli.exe .
 ```
 
 ### 2. Install the paritok proxy
@@ -63,8 +63,8 @@ gpu_server:
 ### 4. Save your API keys
 
 ```powershell
-prompt-diet-coach auth pk_live_<your-paritok-key>
-prompt-diet-coach auth-nvidia nvapi-<your-nvidia-key>
+paritok-cli auth pk_live_<your-paritok-key>
+paritok-cli auth-nvidia nvapi-<your-nvidia-key>
 ```
 
 Keys are stored in `~/.paritok.json` with `0600` permissions.
@@ -75,13 +75,13 @@ Keys are stored in `~/.paritok.json` with `0600` permissions.
 
 ```powershell
 # Terminal 1: start the proxy
-prompt-diet-coach proxy start
+paritok-cli proxy start
 
 # Terminal 2: chat
-prompt-diet-coach chat
+paritok-cli chat
 
 # When done
-prompt-diet-coach proxy stop
+paritok-cli proxy stop
 ```
 
 ### Commands
@@ -107,7 +107,7 @@ prompt-diet-coach proxy stop
 
 **Headless mode:**
 ```powershell
-prompt-diet-coach code "build a calculator using typescript"
+paritok-cli code "build a calculator using typescript"
 ```
 
 This generates code, saves it to a temp file, runs it (e.g. `npx tsx` for TypeScript), captures output, and feeds errors back to the AI to fix. Loops up to 5 iterations.
@@ -134,8 +134,8 @@ Same loop but progress is shown inline in the chat viewport.
 Default model: `openai/gpt-oss-20b`
 
 ```powershell
-prompt-diet-coach chat --model "meta/llama-3.1-70b-instruct"
-prompt-diet-coach code --model "meta/llama-3.1-70b-instruct" "build a calculator"
+paritok-cli chat --model "meta/llama-3.1-70b-instruct"
+paritok-cli code --model "meta/llama-3.1-70b-instruct" "build a calculator"
 ```
 
 ## Configuration
