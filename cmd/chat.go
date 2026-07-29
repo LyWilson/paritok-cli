@@ -7,9 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"github.com/LyWilson/prompt-diet-coach/internal/client"
-	"github.com/LyWilson/prompt-diet-coach/internal/config"
-	"github.com/LyWilson/prompt-diet-coach/internal/tui"
+	"github.com/LyWilson/paritok-cli/internal/client"
+	"github.com/LyWilson/paritok-cli/internal/config"
+	"github.com/LyWilson/paritok-cli/internal/tui"
 )
 
 var modelFlag string

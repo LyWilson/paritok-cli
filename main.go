@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/LyWilson/prompt-diet-coach/cmd"
+	"github.com/LyWilson/paritok-cli/cmd"
 )
 
 func main() {

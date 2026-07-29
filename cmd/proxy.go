@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/LyWilson/prompt-diet-coach/internal/config"
+	"github.com/LyWilson/paritok-cli/internal/config"
 )
 
 var proxyCmd = &cobra.Command{

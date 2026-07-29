@@ -14,8 +14,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/LyWilson/prompt-diet-coach/internal/agent"
-	"github.com/LyWilson/prompt-diet-coach/internal/client"
+	"github.com/LyWilson/paritok-cli/internal/agent"
+	"github.com/LyWilson/paritok-cli/internal/client"
 )
 
 var (

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/LyWilson/prompt-diet-coach/internal/config"
+	"github.com/LyWilson/paritok-cli/internal/config"
 )
 
 type Message struct {

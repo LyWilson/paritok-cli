@@ -1,4 +1,4 @@
-module github.com/LyWilson/prompt-diet-coach
+module github.com/LyWilson/paritok-cli
 
 go 1.26.5
 
